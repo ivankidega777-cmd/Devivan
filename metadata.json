@@ -1,0 +1,5 @@
+{
+  "name": "Spark - AI Dating App",
+  "description": "A dating app with AI-powered matchmaking and a real-time voice dating coach.",
+  "requestFramePermissions": ["microphone"]
+}

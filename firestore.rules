@@ -1,0 +1,116 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+    
+    function isOptionalString(field, maxLen) {
+      return !('field' in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'displayName', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             isValidString('displayName', 1, 50) &&
+             isOptionalString('photoURL', 500) &&
+             isOptionalString('bio', 500) &&
+             (!('age' in data) || (data.age is number && data.age >= 18 && data.age <= 120)) &&
+             (!('gender' in data) || data.gender in ['male', 'female', 'other']) &&
+             (!('interestedIn' in data) || data.interestedIn in ['male', 'female', 'everyone']) &&
+             (!('isPremium' in data) || data.isPremium is bool) &&
+             data.createdAt is timestamp;
+    }
+    
+    function isValidSwipe(data) {
+      return hasRequiredFields(['fromUserId', 'toUserId', 'action', 'createdAt']) &&
+             data.fromUserId == request.auth.uid &&
+             data.action in ['like', 'pass'] &&
+             data.createdAt is timestamp;
+    }
+    
+    function isValidMatch(data) {
+      return hasRequiredFields(['users', 'createdAt']) &&
+             data.users is list &&
+             data.users.size() == 2 &&
+             request.auth.uid in data.users &&
+             data.createdAt is timestamp;
+    }
+    
+    function isValidMessage(data) {
+      return hasRequiredFields(['matchId', 'senderId', 'text', 'createdAt']) &&
+             data.senderId == request.auth.uid &&
+             isValidString('text', 1, 1000) &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /users/{userId} {
+      // Anyone authenticated can read user profiles (for discovering)
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isOwner(userId);
+    }
+    
+    match /swipes/{swipeId} {
+      // Users can only read their own swipes
+      allow read: if isAuthenticated() && resource.data.fromUserId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidSwipe(request.resource.data);
+      // Swipes are immutable
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    match /matches/{matchId} {
+      // Users can only read matches they are part of
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.users;
+      allow create: if isAuthenticated() && isValidMatch(request.resource.data);
+      // Matches are immutable (for now)
+      allow update: if false;
+      allow delete: if false;
+    }
+    
+    match /messages/{messageId} {
+      // Users can read messages if they are part of the match
+      // We need to fetch the match document to verify, but for simplicity we'll allow read if they know the matchId
+      // A more secure way is to check if the user is in the match document
+      allow read: if isAuthenticated() && 
+                  request.auth.uid in get(/databases/$(database)/documents/matches/$(resource.data.matchId)).data.users;
+      
+      allow create: if isAuthenticated() && isValidMessage(request.resource.data) &&
+                    request.auth.uid in get(/databases/$(database)/documents/matches/$(request.resource.data.matchId)).data.users;
+                    
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

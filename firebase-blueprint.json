@@ -1,0 +1,75 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "bio": { "type": "string" },
+        "age": { "type": "number" },
+        "gender": { "type": "string", "enum": ["male", "female", "other"] },
+        "interestedIn": { "type": "string", "enum": ["male", "female", "everyone"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "createdAt"]
+    },
+    "Swipe": {
+      "title": "Swipe",
+      "description": "A record of a user swiping on another user",
+      "type": "object",
+      "properties": {
+        "fromUserId": { "type": "string" },
+        "toUserId": { "type": "string" },
+        "action": { "type": "string", "enum": ["like", "pass"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUserId", "toUserId", "action", "createdAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "A mutual like between two users",
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["users", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message between matched users",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["matchId", "senderId", "text", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles"
+    },
+    "swipes/{swipeId}": {
+      "schema": { "$ref": "#/entities/Swipe" },
+      "description": "Stores swipe actions"
+    },
+    "matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Stores mutual matches"
+    },
+    "messages/{messageId}": {
+      "schema": { "$ref": "#/entities/Message" },
+      "description": "Stores chat messages"
+    }
+  }
+}
